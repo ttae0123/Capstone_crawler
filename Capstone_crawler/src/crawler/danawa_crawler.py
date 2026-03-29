@@ -17,38 +17,38 @@ def extract_refined_spec(spec_list, category):
     combined_text = " / ".join(spec_list)
 
     if category == "CPU":
-        res['칩셋 종류'] = re.search(r'소켓([a-zA-Z0-9]+)', combined_text).group(1) if re.search(r'소켓([a-zA-Z0-9]+)', combined_text) else "N/A"
-        res['메모리규격'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
-        res['쿨러'] = "미포함" if "미포함" in combined_text else ("포함" if "쿨러" in combined_text else "N/A")
+        res['chipset_type'] = re.search(r'소켓([a-zA-Z0-9]+)', combined_text).group(1) if re.search(r'소켓([a-zA-Z0-9]+)', combined_text) else "N/A"
+        res['memory_type'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
+        res['cooler'] = "not_included" if "미포함" in combined_text else ("included" if "쿨러" in combined_text else "N/A")
 
     elif category == "GPU":
-        res['정격파워'] = re.search(r'정격파워\s*([0-9]+W)', combined_text).group(1) if re.search(r'정격파워\s*([0-9]+W)', combined_text) else "N/A"
-        res['메인보드 연결'] = re.search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', combined_text, re.I).group(1) if re.search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', combined_text, re.I) else "N/A"
+        res['recommended_power'] = re.search(r'정격파워\s*([0-9]+W)', combined_text).group(1) if re.search(r'정격파워\s*([0-9]+W)', combined_text) else "N/A"
+        res['pcie_type'] = re.search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', combined_text, re.I).group(1) if re.search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', combined_text, re.I) else "N/A"
         gpu_len = re.search(r'가로\(길이\)[^0-9]*([\d.]+)\s*mm', combined_text, re.I)
-        res['가로(길이)'] = f"{gpu_len.group(1)}mm" if gpu_len else "N/A"
+        res['length'] = f"{gpu_len.group(1)}mm" if gpu_len else "N/A"
 
     elif category == "Mainboard":
-        res['칩셋 종류'] = re.search(r'소켓([a-zA-Z0-9]+)', combined_text).group(1) if re.search(r'소켓([a-zA-Z0-9]+)', combined_text) else "N/A"
-        res['램슬롯'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
-        res['그래픽카드 연결'] = re.search(r'PCIe[0-9.]+\s*x[0-9]+', combined_text, re.I).group(0) if re.search(r'PCIe[0-9.]+\s*x[0-9]+', combined_text, re.I) else "N/A"
-        res['보드 사이즈'] = re.search(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I).group(0) if re.search(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I) else "N/A"
-        res['램클럭'] = re.search(r'([0-9]+MHz)', combined_text).group(1) if re.search(r'([0-9]+MHz)', combined_text) else "N/A"
+        res['chipset_type'] = re.search(r'소켓([a-zA-Z0-9]+)', combined_text).group(1) if re.search(r'소켓([a-zA-Z0-9]+)', combined_text) else "N/A"
+        res['memory_type'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
+        res['pcie_type'] = re.search(r'PCIe[0-9.]+\s*x[0-9]+', combined_text, re.I).group(0) if re.search(r'PCIe[0-9.]+\s*x[0-9]+', combined_text, re.I) else "N/A"
+        res['size'] = re.search(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I).group(0) if re.search(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I) else "N/A"
+        res['memory_clock'] = re.search(r'([0-9]+MHz)', combined_text).group(1) if re.search(r'([0-9]+MHz)', combined_text) else "N/A"
 
     elif category == "RAM":
-        res['램슬롯'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
-        res['램클럭'] = re.search(r'([0-9]+MHz)', combined_text).group(1) if re.search(r'([0-9]+MHz)', combined_text) else "N/A"
-        res['램개수'] = re.search(r'램개수:\s*([0-9]+개)', combined_text).group(1) if re.search(r'램개수:\s*([0-9]+개)', combined_text) else "1개"
+        res['memory_type'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
+        res['memory_clock'] = re.search(r'([0-9]+MHz)', combined_text).group(1) if re.search(r'([0-9]+MHz)', combined_text) else "N/A"
+        res['count'] = re.search(r'램개수:\s*([0-9]+개)', combined_text).group(1) if re.search(r'램개수:\s*([0-9]+개)', combined_text) else "1"
 
     elif category == "Case":
-        res['지원보드규격'] = ", ".join(re.findall(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I))
+        res['size'] = ", ".join(re.findall(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I))
         vga_len = re.search(r'VGA\s*길이[^0-9]*([\d.]+)\s*mm', combined_text, re.I)
-        res['VGA(GPU)길이'] = f"{vga_len.group(1)}mm" if vga_len else "N/A"
+        res['gpu_length'] = f"{vga_len.group(1)}mm" if vga_len else "N/A"
         cpu_h = re.search(r'CPU쿨러\s*높이[^0-9]*([\d.]+)\s*mm', combined_text, re.I)
-        res['CPU쿨러 높이'] = f"{cpu_h.group(1)}mm" if cpu_h else "N/A"
+        res['cooler_size'] = f"{cpu_h.group(1)}mm" if cpu_h else "N/A"
 
     elif category == "Power":
-        res['파워사이즈'] = re.search(r'(ATX|M-ATX|SFX)', combined_text, re.I).group(0) if re.search(r'(ATX|M-ATX|SFX)', combined_text, re.I) else "N/A"
-        res['정격출력'] = re.search(r'([0-9]+W)', combined_text).group(1) if re.search(r'([0-9]+W)', combined_text) else "N/A"
+        res['size'] = re.search(r'(ATX|M-ATX|SFX)', combined_text, re.I).group(0) if re.search(r'(ATX|M-ATX|SFX)', combined_text, re.I) else "N/A"
+        res['wattage'] = re.search(r'([0-9]+W)', combined_text).group(1) if re.search(r'([0-9]+W)', combined_text) else "N/A"
 
     return res
 

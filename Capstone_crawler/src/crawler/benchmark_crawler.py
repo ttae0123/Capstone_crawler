@@ -16,7 +16,7 @@ def dump_all_benchmarks(category_name):
         os.makedirs(data_dir)
 
     options = Options()
-    options.add_argument("--headless")  # 창 안띄우기 (원하면 주석 처리)
+    options.add_argument("--headless")
     options.add_argument("--disable-blink-features=AutomationControlled")
 
     driver = webdriver.Chrome(options=options)
