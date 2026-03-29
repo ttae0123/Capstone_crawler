@@ -9,9 +9,10 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from convert_to_DB import get_db_connection
 
 def extract_refined_spec(spec_list, category):
-    #부품별 view_dic 리스트에서 해당하는 값만 정규표현식으로 추출
+
     res = {}
     combined_text = " / ".join(spec_list)
 
@@ -51,7 +52,7 @@ def extract_refined_spec(spec_list, category):
 
     return res
 
-def crawl_danawa_final(category_name, cate_code, total_pages):
+def crawl_danawa(category_name, cate_code, total_pages):
     print(f"\n>>> {category_name} 정밀 수집 시작 (목표: 1~{total_pages}페이지)")
 
     options = Options()
@@ -67,42 +68,39 @@ def crawl_danawa_final(category_name, cate_code, total_pages):
             driver.get(url)
             print(f"  [{page}/{total_pages}] 페이지 접속 중...")
 
-            # 메인 상품 리스트가 뜰 때까지 대기
             WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, ".main_prodlist")))
 
-            # 동적 로딩을 위해 스크롤 다운
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # 상품 아이템 추출
             products = driver.find_elements(By.CSS_SELECTOR, "li.prod_item")
 
             for p in products:
-                # 광고 상품 및 무의미한 요소 스킵
+
                 p_class = p.get_attribute("class")
                 if "product-pot" in p_class or "ad_prod_item" in p_class:
                     continue
 
                 try:
-                    # 제목 추출
+
                     name = p.find_element(By.CSS_SELECTOR, ".prod_name a").text.strip()
 
-                    # 가격 추출 및 숫자 변환
+
                     price_str = p.find_element(By.CSS_SELECTOR, ".price_sect strong").text.replace(",", "").strip()
                     if not price_str.isdigit(): continue
                     price = int(price_str)
 
-                    # 스펙 리스트 추출
+
                     spec_elements = p.find_elements(By.CSS_SELECTOR, ".spec_list .view_dic")
                     spec_list = [s.text.strip() for s in spec_elements if s.text.strip()]
 
                     if name and price:
                         item = {"제품명": name, "가격": price}
-                        # 정규표현식 기반 상세 스펙 정제
+
                         refined_specs = extract_refined_spec(spec_list, category_name)
                         item.update(refined_specs)
 
-                        # 데스크탑용 RAM
+
                         if category_name == "RAM" and "데스크탑용" not in " ".join(spec_list):
                             continue
 
@@ -110,16 +108,19 @@ def crawl_danawa_final(category_name, cate_code, total_pages):
                 except Exception:
                     continue
 
-            # 페이지 전환 전 딜레이
+
             time.sleep(1.5)
 
-        # 데이터 저장
+
         save_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
         if not os.path.exists(save_dir): os.makedirs(save_dir)
 
         output_file = os.path.join(save_dir, f"data_{category_name}.csv")
-        pd.DataFrame(all_data).to_csv(output_file, index=False, encoding="utf-8-sig")
+        df_result = pd.DataFrame(all_data)
+        df_result.to_csv(output_file, index=False, encoding="utf-8-sig")
         print(f"★ {category_name} 수집 완료: 총 {len(all_data)}개 데이터 저장됨")
+        if category_name in ["Mainboard", "Power", "CASE"]:
+            get_db_connection(category_name, df_result)
 
     except Exception as e:
         print(f"! {category_name} 수집 중 에러 발생: {e}")
@@ -139,7 +140,7 @@ parts_list = [
 
 if __name__ == "__main__":
     for p in parts_list:
-        # 각 부품당 3페이지씩 수집
-        crawl_danawa_final(p["name"], p["code"], total_pages=5)
-        # 차단 방지를 위한 부품 간 딜레이
+
+        crawl_danawa(p["name"], p["code"], total_pages=5)
+
         time.sleep(3)
