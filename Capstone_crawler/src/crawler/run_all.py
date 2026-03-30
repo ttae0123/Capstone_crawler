@@ -8,7 +8,8 @@ sys.path.append(current_dir)
 
 from benchmark_crawler import dump_all_benchmarks
 from danawa_crawler import crawl_danawa
-from data_processor import match_data
+from logic.data_processor import match_data
+from logic.create_DB import init_db
 
 
 PARTS = ["CPU", "GPU", "SSD", "RAM"]
@@ -56,7 +57,7 @@ def run_processing():
 
 if __name__ == "__main__":
     print("전체 자동 파이프라인 시작")
-
+    init_db()
     run_benchmark()
     run_danawa()
     run_processing()
