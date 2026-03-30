@@ -40,7 +40,6 @@ class Mainboard(Base):
     pcie_type = Column(Text)
     size = Column(Text)
     memory_clock = Column(BigInteger)
-    bench_score = Column(BigInteger, nullable=True)
 
 
 class Ram(Base):
