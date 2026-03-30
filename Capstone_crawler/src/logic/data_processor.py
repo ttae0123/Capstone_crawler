@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import re
-from convert_to_DB import get_db_connection
+from logic.convert_to_DB import get_db_connection
 
 
 def extract_model_info(text):
