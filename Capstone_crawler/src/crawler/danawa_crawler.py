@@ -9,46 +9,106 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from convert_to_DB import get_db_connection
+from logic.convert_to_DB import get_db_connection
+
+import re
 
 def extract_refined_spec(spec_list, category):
-
     res = {}
     combined_text = " / ".join(spec_list)
 
+    def search(pattern, flags=0):
+        return re.search(pattern, combined_text, flags)
+
+    def findall(pattern, flags=0):
+        return re.findall(pattern, combined_text, flags)
+
+    def normalize_pcie(val):
+        return val.upper().replace(" ", "") if val else None
+
+    def normalize_size(val):
+        if not val:
+            return None
+        val = val.upper()
+        mapping = {
+            "M-ATX": "MATX",
+            "MICRO-ATX": "MATX",
+            "MINI-ITX": "ITX",
+            "E-ATX": "EATX"
+        }
+        return mapping.get(val, val.replace("-", ""))
+
+    def normalize_sizes(vals):
+        if not vals:
+            return None
+        normalized = {normalize_size(v) for v in vals}
+        return ",".join(sorted(normalized))
+
     if category == "CPU":
-        res['chipset_type'] = re.search(r'소켓([a-zA-Z0-9]+)', combined_text).group(1) if re.search(r'소켓([a-zA-Z0-9]+)', combined_text) else "N/A"
-        res['memory_type'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
-        res['cooler'] = "not_included" if "미포함" in combined_text else ("included" if "쿨러" in combined_text else "N/A")
+        m = search(r'소켓([a-zA-Z0-9]+)')
+        res['socket_type'] = m.group(1).upper() if m else None
+
+        m = findall(r'DDR[0-9]+')
+        res['memory_type'] = m[0].upper() if m else None
+
+        res['cooler'] = (
+            False if "미포함" in combined_text
+            else True if ("쿨러" in combined_text)
+            else None
+        )
 
     elif category == "GPU":
-        res['recommended_power'] = re.search(r'정격파워\s*([0-9]+W)', combined_text).group(1) if re.search(r'정격파워\s*([0-9]+W)', combined_text) else "N/A"
-        res['pcie_type'] = re.search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', combined_text, re.I).group(1) if re.search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', combined_text, re.I) else "N/A"
-        gpu_len = re.search(r'가로\(길이\)[^0-9]*([\d.]+)\s*mm', combined_text, re.I)
-        res['length'] = f"{gpu_len.group(1)}mm" if gpu_len else "N/A"
+        m = search(r'정격파워\s*([0-9]+)W')
+        res['recommended_power'] = int(m.group(1)) if m else None
+
+        m = search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', re.I)
+        res['pcie_type'] = normalize_pcie(m.group(1)) if m else None
+
+        m = search(r'가로\(길이\)[^0-9]*([\d.]+)\s*mm', re.I)
+        res['gpu_length'] = int(m.group(1)) if m else None
 
     elif category == "Mainboard":
-        res['chipset_type'] = re.search(r'소켓([a-zA-Z0-9]+)', combined_text).group(1) if re.search(r'소켓([a-zA-Z0-9]+)', combined_text) else "N/A"
-        res['memory_type'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
-        res['pcie_type'] = re.search(r'PCIe[0-9.]+\s*x[0-9]+', combined_text, re.I).group(0) if re.search(r'PCIe[0-9.]+\s*x[0-9]+', combined_text, re.I) else "N/A"
-        res['size'] = re.search(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I).group(0) if re.search(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I) else "N/A"
-        res['memory_clock'] = re.search(r'([0-9]+MHz)', combined_text).group(1) if re.search(r'([0-9]+MHz)', combined_text) else "N/A"
+        m = search(r'소켓([a-zA-Z0-9]+)')
+        res['socket_type'] = m.group(1).upper() if m else None
+
+        m = findall(r'DDR[0-9]+')
+        res['memory_type'] = m[0].upper() if m else None
+
+        m = search(r'PCIe[0-9.]+\s*x\s*[0-9]+', re.I)
+        res['pcie_type'] = normalize_pcie(m.group(0)) if m else None
+
+        m = search(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)', re.I)
+        res['size'] = normalize_size(m.group(0)) if m else None
+
+        m = search(r'([0-9]+)MHz')
+        res['memory_clock'] = int(m.group(1)) if m else None
 
     elif category == "RAM":
-        res['memory_type'] = re.findall(r'DDR[45]', combined_text)[0] if re.findall(r'DDR[45]', combined_text) else "N/A"
-        res['memory_clock'] = re.search(r'([0-9]+MHz)', combined_text).group(1) if re.search(r'([0-9]+MHz)', combined_text) else "N/A"
-        res['count'] = re.search(r'램개수:\s*([0-9]+개)', combined_text).group(1) if re.search(r'램개수:\s*([0-9]+개)', combined_text) else "1"
+        m = findall(r'DDR[0-9]+')
+        res['memory_type'] = m[0].upper() if m else None
+
+        m = search(r'([0-9]+)MHz')
+        res['memory_clock'] = int(m.group(1)) if m else None
+
+        m = search(r'램개수:\s*([0-9]+)개')
+        res['count'] = int(m.group(1)) if m else 1
 
     elif category == "Case":
-        res['size'] = ", ".join(re.findall(r'(ATX|M-ATX|E-ATX|Mini-ITX)', combined_text, re.I))
-        vga_len = re.search(r'VGA\s*길이[^0-9]*([\d.]+)\s*mm', combined_text, re.I)
-        res['gpu_length'] = f"{vga_len.group(1)}mm" if vga_len else "N/A"
-        cpu_h = re.search(r'CPU쿨러\s*높이[^0-9]*([\d.]+)\s*mm', combined_text, re.I)
-        res['cooler_size'] = f"{cpu_h.group(1)}mm" if cpu_h else "N/A"
+        sizes = findall(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)', re.I)
+        res['size'] = normalize_sizes(sizes)
+
+        m = search(r'VGA\s*길이[^0-9]*([\d.]+)\s*mm', re.I)
+        res['gpu_length'] = int(m.group(1)) if m else None
+
+        m = search(r'CPU쿨러\s*높이[^0-9]*([\d.]+)\s*mm', re.I)
+        res['cooler_length'] = int(m.group(1)) if m else None
 
     elif category == "Power":
-        res['size'] = re.search(r'(ATX|M-ATX|SFX)', combined_text, re.I).group(0) if re.search(r'(ATX|M-ATX|SFX)', combined_text, re.I) else "N/A"
-        res['wattage'] = re.search(r'([0-9]+W)', combined_text).group(1) if re.search(r'([0-9]+W)', combined_text) else "N/A"
+        m = search(r'(ATX|M-ATX|SFX)', re.I)
+        res['size'] = normalize_size(m.group(0)) if m else None
+
+        m = search(r'([0-9]+)W')
+        res['wattage'] = int(m.group(1)) if m else None
 
     return res
 
@@ -95,7 +155,7 @@ def crawl_danawa(category_name, cate_code, total_pages):
                     spec_list = [s.text.strip() for s in spec_elements if s.text.strip()]
 
                     if name and price:
-                        item = {"제품명": name, "가격": price}
+                        item = {"name": name, "price": price}
 
                         refined_specs = extract_refined_spec(spec_list, category_name)
                         item.update(refined_specs)
@@ -119,7 +179,7 @@ def crawl_danawa(category_name, cate_code, total_pages):
         df_result = pd.DataFrame(all_data)
         df_result.to_csv(output_file, index=False, encoding="utf-8-sig")
         print(f"★ {category_name} 수집 완료: 총 {len(all_data)}개 데이터 저장됨")
-        if category_name in ["Mainboard", "Power", "CASE"]:
+        if category_name in ["Mainboard", "Power", "Case"]:
             get_db_connection(category_name, df_result)
 
     except Exception as e:
