@@ -13,7 +13,9 @@ def extract_model_info(text):
     noise_words = [
         '삼성전자', '마이크로닉스', '이엠텍', 'asus', 'msi', 'gigabyte', 'asrock', 'zotac',
         'galaxy', '정품', '멀티팩', '대원cts', '제이씨현', '피씨디렉트', '코잇',
-        '인텍앤컴퍼니', '박스', '벌크', 'edition', 'colorful'
+        '인텍앤컴퍼니', '박스', '벌크', 'edition', 'colorful', '그래니트', '라파엘', '세잔',
+        '애로우레이크', '릿지', '랩터레이크', '리프레시', '하이퍼프로져', '대원씨티에스', '트라이프로져4',
+        '게이밍', '벤투스', '뱅가드'
     ]
 
     suffix_list = ['k', 'kf', 'f', 'x', 'xt', 'ti', 'super']
@@ -65,9 +67,9 @@ def calc_match_score(d, b):
     suffix_score = len(d["suffix"] & b["suffix"])
 
     score = (
-        len(num_inter) * 5 +      # 숫자 매우 중요
-        jaccard * 3 +            # 전체 유사도
-        suffix_score * 2         # suffix 보정
+        len(num_inter) * 5 +
+        jaccard * 3 +
+        suffix_score * 2
     )
 
     return score
