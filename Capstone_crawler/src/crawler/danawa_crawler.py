@@ -189,3 +189,14 @@ parts_list = [
     {"name": "Case", "code": "112775"}
 ]
 
+if __name__ == "__main__":
+    for p in parts_list:
+
+
+
+
+
+
+        # conflict 에서 삭제한 부분
+        crawl_danawa(p["name"], p["code"], total_pages=5)
+        time.sleep(2)
