@@ -56,7 +56,7 @@ def run_processing():
 
 
 if __name__ == "__main__":
-    print("전체 자동 파이프라인 시작")
+    print("전체 파이프라인 시작")
     init_db()
     run_benchmark()
     run_danawa()

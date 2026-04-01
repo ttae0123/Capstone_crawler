@@ -1,5 +1,3 @@
-from idlelib.help_about import bits
-
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, BigInteger, Text, Boolean
 from logic.connection import get_engine
