@@ -5,7 +5,6 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 from logic.convert_to_DB import get_db_connection
 
-# [로직 변경 없음] 기존 정규표현식 추출 함수
 def extract_refined_spec(spec_list, category):
     res = {}
     combined_text = " / ".join(spec_list)
@@ -32,7 +31,6 @@ def extract_refined_spec(spec_list, category):
         if not normalized: return None
         return max(normalized, key=lambda x: order.get(x, 0))
 
-    # 카테고리별 분기 로직 (기존과 동일)
     if category == "CPU":
         m = search(r'소켓([a-zA-Z0-9]+)')
         res['socket_type'] = m.group(1).upper() if m else None
@@ -192,11 +190,5 @@ parts_list = [
 if __name__ == "__main__":
     for p in parts_list:
 
-
-
-
-
-
-        # conflict 에서 삭제한 부분
         crawl_danawa(p["name"], p["code"], total_pages=5)
         time.sleep(2)
