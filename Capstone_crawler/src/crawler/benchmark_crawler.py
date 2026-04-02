@@ -96,5 +96,5 @@ def dump_all_benchmarks(category_name):
 
 
 if __name__ == "__main__":
-    for part in ["CPU", "GPU", "SSD", "RAM"]:
+    for part in ["CPU", "GPU", "SSD", "RAM"]: #123
         dump_all_benchmarks(part)
