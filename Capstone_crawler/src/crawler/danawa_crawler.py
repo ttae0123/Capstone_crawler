@@ -138,8 +138,8 @@ def crawl_danawa(category_name, cate_code, total_pages):
                 clean_name = re.sub(r'\(.*?\)', '', raw_name).strip()
 
                 # 중복 데이터 체크
-                if not clean_name or clean_name in seen_names: continue
-                seen_names.add(clean_name)
+                # if not clean_name or clean_name in seen_names: continue
+                # seen_names.add(clean_name)
 
                 # 가격 정보 추출
                 price_tag = p.select_one(".price_sect strong")
@@ -172,14 +172,14 @@ def crawl_danawa(category_name, cate_code, total_pages):
     df_result = pd.DataFrame(all_data)
 
     # 최종 중복 제거 (데이터프레임 레벨)
-    df_result = df_result.drop_duplicates(subset=["name"], keep="first")
-    df_result.to_csv(output_file, index=False, encoding="utf-8-sig")
+    # df_result = df_result.drop_duplicates(subset=["name"], keep="first")
+    # df_result.to_csv(output_file, index=False, encoding="utf-8-sig")
 
     print(f"★ {category_name} 수집 완료: 총 {len(df_result)}개 데이터 확보")
 
     # DB 연동 (지정된 카테고리만)
-    if category_name in ["Mainboard", "Power", "Case"]:
-        get_db_connection(category_name, df_result)
+    # if category_name in ["Mainboard", "Power", "Case"]:
+    #     get_db_connection(category_name, df_result)
 
 # 수집 대상 리스트 설정
 parts_list = [
