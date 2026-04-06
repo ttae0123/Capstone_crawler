@@ -12,7 +12,7 @@ class Cpu(Base):
     price = Column(BigInteger)
     socket_type = Column(Text)
     memory_type = Column(Text)
-    cooler = Column(Boolean)
+    # cooler = Column(Boolean)
     bench_score = Column(BigInteger, nullable=True)
 
 

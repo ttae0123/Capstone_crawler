@@ -8,12 +8,12 @@ def get_db_connection(part_type,df_result):
         table_name = f"{part_type.lower()}"
 
         if "name" in df_result.columns:
-            df_result = df_result.drop_duplicates(subset=["name"])
+            df_result = df_result.drop_duplicates(subset=["name", "price"])
 
         df_result.to_sql(
             name=table_name,
             con=engine,
-            if_exists='append',
+            if_exists='replace',
             index=False
         )
 

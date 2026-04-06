@@ -36,7 +36,7 @@ def extract_refined_spec(spec_list, category):
         res['socket_type'] = m.group(1).upper() if m else None
         m = findall(r'DDR[0-9]+')
         res['memory_type'] = m[0].upper() if m else None
-        res['cooler'] = False if "미포함" in combined_text else True if ("쿨러" in combined_text) else None
+        # res['cooler'] = False if "미포함" in combined_text else True if ("쿨러" in combined_text) else None
 
     elif category == "GPU":
         m = search(r'정격파워\s*([0-9]+)W')

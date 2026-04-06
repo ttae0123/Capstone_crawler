@@ -39,7 +39,7 @@ def run_danawa():
     print("\n[2단계] 다나와 크롤링 시작")
     for part in parts_list:
         try:
-            crawl_danawa(part["name"], part["code"], total_pages=20)
+            crawl_danawa(part["name"], part["code"], total_pages=10)
         except Exception as e:
             print(f"danawa {part} 실패")
             traceback.print_exc()
