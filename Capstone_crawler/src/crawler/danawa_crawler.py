@@ -80,41 +80,51 @@ def extract_refined_spec(spec_list, category):
     return res
 
 
-def crawl_danawa(category_name, cate_code, total_pages=20):
+def crawl_danawa(category_name, cate_code, total_pages):
     print(f"\n>>> {category_name} 수집 시작 (목표: {total_pages}페이지)")
 
     temp_dir = os.path.join(os.path.dirname(__file__), "temp_html", category_name)
     os.makedirs(temp_dir, exist_ok=True)
 
     with sync_playwright() as p:
-        # headless=False로 설정하면 차단 확률이 낮아지지만 속도를 위해 True 유지 시 스텔스 설정 권장
+        # 동적 로딩을 눈으로 확인하려면 headless=False를 권장합니다.
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page_obj = context.new_page()
 
+        # 최초 진입: URL로 접속
+        start_url = f"https://prod.danawa.com/list/?cate={cate_code}"
+        page_obj.goto(start_url, wait_until="networkidle")
+        time.sleep(2)
+
         for page in range(1, total_pages + 1):
-            # 정렬 방식을 신상품순(newest) 혹은 판매순 등으로 섞으면 중복을 피하기 좋음
-            url = f"https://prod.danawa.com/list/?cate={cate_code}&page={page}&limit=30"
-
             try:
-                page_obj.goto(url, wait_until="domcontentloaded", timeout=60000)
-                page_obj.wait_for_selector(".main_prodlist", timeout=30000)
+                # 1단계: 자바스크립트 함수 movePage 실행 (동적 로딩)
+                page_obj.evaluate(f"movePage({page})")
 
-                # 페이지 끝까지 스크롤 (다나와는 스크롤해야 상품 정보가 완전히 로드됨)
+                # 2단계: 페이지 번호가 'now_on'으로 바뀔 때까지 대기 (이미지의 클래스 반영)
+                page_obj.wait_for_selector(f"a.num.now_on:has-text('{page}')", timeout=15000)
+
+                # 3단계: 리스트 내용이 로드될 때까지 충분히 대기 및 스크롤
+                time.sleep(2)
                 for _ in range(5):
                     page_obj.keyboard.press("PageDown")
-                    time.sleep(0.5)
+                    time.sleep(0.4)
 
+                # 파일 저장
                 file_path = os.path.join(temp_dir, f"page_{page}.html")
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(page_obj.content())
 
                 print(f"  [{page}/{total_pages}] 저장 완료", end='\r')
                 time.sleep(random.uniform(1.5, 3.0))
+
             except Exception as e:
-                print(f"\n  ! {page}페이지 오류: {e}")
+                print(f"\n  ! {page}페이지 이동/로딩 오류: {e}")
+                # 오류 시 재시도 혹은 다음 페이지 진행
+                continue
 
         browser.close()
 
@@ -125,21 +135,26 @@ def crawl_danawa(category_name, cate_code, total_pages=20):
         with open(os.path.join(temp_dir, file_name), "r", encoding="utf-8") as f:
             soup = BeautifulSoup(f.read(), "html.parser")
 
-        # 광고 상품(.ad_prod_item)을 제외한 실제 상품 리스트만 선택
-        products = soup.select("#productListArea .prod_item:not(.ad_prod_item)")
+        # 광고 상품 및 ID가 없는 항목 제외 (id^='productItem' 패턴 사용)
+        products = soup.select("li[id^='productItem']:not(.ad_prod_item)")
 
         for p in products:
             try:
+                # 상품 고유 ID 추출 (중복 제거의 정확도를 높이기 위함)
+                p_id = p.get('id')
                 name_tag = p.select_one(".prod_name a")
                 price_tag = p.select_one(".price_sect strong")
                 if not name_tag or not price_tag: continue
 
                 name = name_tag.get_text().strip()
-                price = int(price_tag.get_text().replace(",", "").strip())
+                # 가격에 '가격비교 예정' 등이 있을 수 있으므로 숫자만 추출
+                price_str = re.sub(r'[^0-9]', '', price_tag.get_text())
+                if not price_str: continue
+                price = int(price_str)
 
                 spec_list = [s.get_text().strip() for s in p.select(".spec_list .view_dic")]
 
-                item = {"name": name, "price": price}
+                item = {"id": p_id, "name": name, "price": price}
                 item.update(extract_refined_spec(spec_list, category_name))
                 all_data.append(item)
             except:
@@ -148,7 +163,9 @@ def crawl_danawa(category_name, cate_code, total_pages=20):
     # 3단계: 데이터프레임 생성 및 사후 중복 제거
     df = pd.DataFrame(all_data)
     if not df.empty:
-        # 이름이 완전히 같거나, 핵심 스펙이 겹치는 경우 제거 (최저가 우선)
+        # 1차: 고유 ID 기준 중복 제거
+        df = df.drop_duplicates(subset=['id'], keep='first')
+        # 2차: 이름 기준 중복 제거 (최저가 우선)
         df = df.sort_values(by='price', ascending=True)
         df = df.drop_duplicates(subset=['name'], keep='first')
 
@@ -164,15 +181,16 @@ def crawl_danawa(category_name, cate_code, total_pages=20):
 
 if __name__ == "__main__":
     parts_list = [
-        {"name": "CPU", "code": "112747"},
-        {"name": "GPU", "code": "112753"},
-        {"name": "Mainboard", "code": "112751"},
-        {"name": "Power", "code": "112777"},
-        {"name": "RAM", "code": "112752"},
-        {"name": "SSD", "code": "112760"},
-        {"name": "Case", "code": "112775"}
+        {"name": "CPU", "code": "112747", "page": 18},
+        {"name": "GPU", "code": "112753", "page": 20},
+        {"name": "Mainboard", "code": "112751", "page": 20},
+        {"name": "Power", "code": "112777", "page": 20},
+        {"name": "RAM", "code": "112752", "page": 20},
+        {"name": "SSD", "code": "112760", "page": 20},
+        {"name": "Case", "code": "112775", "page": 20}
     ]
 
     for p in parts_list:
-        crawl_danawa(p["name"], p["code"], total_pages=20)  # 페이지 수를 20으로 상향
-        time.sleep(5)
+        crawl_danawa(p["name"], p["code"], p["page"])
+        # 카테고리 간 충분한 휴식 (차단 방지)
+        time.sleep(random.uniform(5.0, 8.0))

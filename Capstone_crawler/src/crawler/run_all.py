@@ -14,14 +14,14 @@ from logic.create_DB import init_db
 
 PARTS = ["CPU", "GPU", "SSD", "RAM"]
 parts_list = [
-    {"name": "CPU", "code": "112747"},
-    {"name": "GPU", "code": "112753"},
-    {"name": "Mainboard", "code": "112751"},
-    {"name": "Power", "code": "112777"},
-    {"name": "RAM", "code": "112752"},
-    {"name": "SSD", "code": "112760"},
-    {"name": "Case", "code": "112775"}
-]
+        {"name": "CPU", "code": "112747", "page": 18},
+        {"name": "GPU", "code": "112753", "page": 20},
+        {"name": "Mainboard", "code": "112751", "page": 20},
+        {"name": "Power", "code": "112777", "page": 20},
+        {"name": "RAM", "code": "112752", "page": 20},
+        {"name": "SSD", "code": "112760", "page": 20},
+        {"name": "Case", "code": "112775", "page": 20}
+    ]
 
 
 
@@ -39,7 +39,7 @@ def run_danawa():
     print("\n[2단계] 다나와 크롤링 시작")
     for part in parts_list:
         try:
-            crawl_danawa(part["name"], part["code"], total_pages=20)
+            crawl_danawa(part["name"], part["code"], part["page"])
         except Exception as e:
             print(f"danawa {part} 실패")
             traceback.print_exc()
