@@ -48,7 +48,7 @@ class Ram(Base):
     price = Column(BigInteger)
     memory_type = Column(Text)
     memory_clock = Column(BigInteger)
-    count = Column(BigInteger)
+    # count = Column(BigInteger)
     bench_score = Column(BigInteger, nullable=True)
 
 class Case(Base):

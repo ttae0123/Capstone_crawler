@@ -6,78 +6,70 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
+from logic.convert_to_DB import get_db_connection
+
 
 def extract_refined_spec(spec_list, category):
     res = {}
     combined_text = " / ".join(spec_list)
-
-    def search(pattern, flags=re.I):
-        return re.search(pattern, combined_text, flags)
-
-    def findall(pattern, flags=re.I):
-        return re.findall(pattern, combined_text, flags)
-
-    def normalize_pcie(val):
-        return val.upper().replace(" ", "") if val else None
-
+    def search(pattern, flags=0): return re.search(pattern, combined_text, flags)
+    def findall(pattern, flags=0): return re.findall(pattern, combined_text, flags)
+    def normalize_pcie(val): return val.upper().replace(" ", "") if val else None
     def normalize_size(val):
         if not val: return None
         val = val.upper()
         mapping = {"M-ATX": "MATX", "MICRO-ATX": "MATX", "MINI-ITX": "ITX", "E-ATX": "EATX"}
         return mapping.get(val, val.replace("-", ""))
-
     def pick_largest_size(vals):
         if not vals: return None
         order = {"EATX": 4, "ATX": 3, "MATX": 2, "ITX": 1}
         normalized = [normalize_size(v) for v in vals if normalize_size(v)]
-        return max(normalized, key=lambda x: order.get(x, 0)) if normalized else None
+        if not normalized: return None
+        return max(normalized, key=lambda x: order.get(x, 0))
 
-    # 카테고리별 상세 로직
     if category == "CPU":
         m = search(r'소켓([a-zA-Z0-9]+)')
         res['socket_type'] = m.group(1).upper() if m else None
         m = findall(r'DDR[0-9]+')
         res['memory_type'] = m[0].upper() if m else None
-
     elif category == "GPU":
         m = search(r'정격파워\s*([0-9]+)W')
         res['recommended_power'] = int(m.group(1)) if m else None
-        m = search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)')
+        m = search(r'(PCIe[0-9.]+\s*X\s*[0-9]+)', re.I)
         res['pcie_type'] = normalize_pcie(m.group(1)) if m else None
-        m = search(r'가로\(길이\)[^0-9]*([\d.]+)\s*mm')
+        m = search(r'가로\(길이\)[^0-9]*([\d.]+)\s*mm', re.I)
         res['gpu_length'] = int(m.group(1)) if m else None
-
     elif category == "Mainboard":
         m = search(r'소켓([a-zA-Z0-9]+)')
         res['socket_type'] = m.group(1).upper() if m else None
         m = findall(r'DDR[0-9]+')
         res['memory_type'] = m[0].upper() if m else None
-        m = search(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)')
+        m = search(r'PCIe[0-9.]+\s*x\s*[0-9]+', re.I)
+        res['pcie_type'] = normalize_pcie(m.group(0)) if m else None
+        m = search(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)', re.I)
         res['size'] = normalize_size(m.group(0)) if m else None
-
+        m = search(r'([0-9]+)MHz')
+        res['memory_clock'] = int(m.group(1)) if m else None
     elif category == "RAM":
         m = findall(r'DDR[0-9]+')
         res['memory_type'] = m[0].upper() if m else None
         m = search(r'([0-9]+)MHz')
         res['memory_clock'] = int(m.group(1)) if m else None
-
-    elif category == "SSD":
-        m = search(r'(M\.2 \(2280\)|SATA3|PCIe[0-9.]+\s*x\s*[0-9]+)')
-        res['interface'] = m.group(1).upper() if m else None
-        m = search(r'([0-9]+(GB|TB))')
-        res['capacity'] = m.group(1).upper() if m else None
-
+        m = search(r'램개수:\s*([0-9]+)개')
     elif category == "Case":
-        sizes = findall(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)')
+        sizes = findall(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)', re.I)
         res['size'] = pick_largest_size(sizes)
-        m = search(r'VGA\s*길이[^0-9]*([\d.]+)\s*mm')
+        m = search(r'VGA\s*길이[^0-9]*([\d.]+)\s*mm', re.I)
         res['gpu_length'] = int(m.group(1)) if m else None
-
+        m = search(r'CPU쿨러\s*높이[^0-9]*([\d.]+)\s*mm', re.I)
+        res['cooler_length'] = int(m.group(1)) if m else None
     elif category == "Power":
+        m = search(r'(ATX|M-ATX|SFX)', re.I)
+        res['size'] = normalize_size(m.group(0)) if m else None
         m = search(r'([0-9]+)W')
         res['wattage'] = int(m.group(1)) if m else None
-
     return res
+
 
 
 def crawl_danawa(category_name, cate_code, total_pages):
@@ -135,37 +127,32 @@ def crawl_danawa(category_name, cate_code, total_pages):
         with open(os.path.join(temp_dir, file_name), "r", encoding="utf-8") as f:
             soup = BeautifulSoup(f.read(), "html.parser")
 
-        # 광고 상품 및 ID가 없는 항목 제외 (id^='productItem' 패턴 사용)
         products = soup.select("li[id^='productItem']:not(.ad_prod_item)")
 
         for p in products:
             try:
-                # 상품 고유 ID 추출 (중복 제거의 정확도를 높이기 위함)
-                p_id = p.get('id')
+                # p_id 추출 코드 제거함
                 name_tag = p.select_one(".prod_name a")
                 price_tag = p.select_one(".price_sect strong")
                 if not name_tag or not price_tag: continue
 
                 name = name_tag.get_text().strip()
-                # 가격에 '가격비교 예정' 등이 있을 수 있으므로 숫자만 추출
                 price_str = re.sub(r'[^0-9]', '', price_tag.get_text())
                 if not price_str: continue
                 price = int(price_str)
 
                 spec_list = [s.get_text().strip() for s in p.select(".spec_list .view_dic")]
 
-                item = {"id": p_id, "name": name, "price": price}
+                # item 딕셔너리에서 "id" 키를 제외함
+                item = {"name": name, "price": price}
                 item.update(extract_refined_spec(spec_list, category_name))
                 all_data.append(item)
             except:
                 continue
 
-    # 3단계: 데이터프레임 생성 및 사후 중복 제거
     df = pd.DataFrame(all_data)
     if not df.empty:
-        # 1차: 고유 ID 기준 중복 제거
-        df = df.drop_duplicates(subset=['id'], keep='first')
-        # 2차: 이름 기준 중복 제거 (최저가 우선)
+        # 중복 제거 시 'name'을 기준으로 수행 (id가 없으므로 name 기준이 가장 확실함)
         df = df.sort_values(by='price', ascending=True)
         df = df.drop_duplicates(subset=['name'], keep='first')
 
@@ -177,6 +164,9 @@ def crawl_danawa(category_name, cate_code, total_pages):
     output_path = os.path.join(save_dir, f"data_{category_name}.csv")
     df.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(f"\n★ {category_name} 완료: {len(df)}개 고유 데이터 확보")
+
+    if category_name in ["Mainboard", "Power", "Case"]:
+        get_db_connection(category_name, df)
 
 
 if __name__ == "__main__":

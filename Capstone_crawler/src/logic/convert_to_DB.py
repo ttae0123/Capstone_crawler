@@ -7,6 +7,8 @@ def get_db_connection(part_type,df_result):
     try:
         table_name = f"{part_type.lower()}"
 
+        df_result = df_result.dropna()
+
         if "name" in df_result.columns:
             df_result = df_result.drop_duplicates(subset=["name", "price"])
 
