@@ -2,14 +2,17 @@ import sys
 import os
 import traceback
 
+
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 sys.path.append(current_dir)
 
-from benchmark_crawler import dump_all_benchmarks
-from danawa_crawler import crawl_danawa
+from crawler.benchmark_crawler import dump_all_benchmarks
+from crawler.danawa_crawler import crawl_danawa
 from logic.data_processor import match_data
 from logic.create_DB import init_db
+from logic.csv_to_db import load_csv_to_db
 
 
 PARTS = ["CPU", "GPU", "SSD", "RAM"]
@@ -54,6 +57,17 @@ def run_processing():
             print(f"processing {part} 실패")
             traceback.print_exc()
 
+def run_csvToDB():
+    data_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "data", "result")
+    )
+    for file in os.listdir(data_dir):
+        if file.endswith(".csv"):
+            file_path = os.path.join(data_dir, file)
+            load_csv_to_db(file_path)
+
+    print("\n전체 CSV → DB 적재 완료")
+
 
 if __name__ == "__main__":
     print("전체 파이프라인 시작")
@@ -61,5 +75,6 @@ if __name__ == "__main__":
     run_benchmark()
     run_danawa()
     run_processing()
+    run_csvToDB()
 
     print("\n전체 작업 완료")
