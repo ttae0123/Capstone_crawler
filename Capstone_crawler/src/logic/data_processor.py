@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 import re
-from logic.convert_to_DB import get_db_connection
 
 
 def extract_model_info(text):
@@ -123,13 +122,12 @@ def match_data(part_type):
 
     match_rate = (df_result['bench_score'].notna().sum() / len(df_result)) * 100
 
-    save_path = os.path.join(data_dir, f"integrated_{part_type}.csv")
+    output_dir = os.path.join(data_dir, "result")
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, f"integrated_{part_type}.csv")
     df_result.to_csv(save_path, index=False, encoding="utf-8-sig")
 
     print(f"\n {part_type} 통합 완료: 최종 매칭률 {match_rate:.1f}%")
-
-    get_db_connection(part_type,df_result)
-
 
 if __name__ == "__main__":
     for part in ["CPU", "GPU", "SSD", "RAM"]:

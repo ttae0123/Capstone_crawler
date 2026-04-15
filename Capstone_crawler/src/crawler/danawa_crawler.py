@@ -5,8 +5,8 @@ import random
 import pandas as pd
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-from logic.convert_to_DB import get_db_connection
 
 
 def extract_refined_spec(spec_list, category):
@@ -152,21 +152,26 @@ def crawl_danawa(category_name, cate_code, total_pages):
 
     df = pd.DataFrame(all_data)
     if not df.empty:
+        df["created_at"] = datetime.now()
         # 중복 제거 시 'name'을 기준으로 수행 (id가 없으므로 name 기준이 가장 확실함)
         df = df.sort_values(by='price', ascending=True)
         df = df.drop_duplicates(subset=['name'], keep='first')
 
-    save_dir = os.path.abspath(
+    base_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "data")
     )
-    os.makedirs(save_dir, exist_ok=True)
-
-    output_path = os.path.join(save_dir, f"data_{category_name}.csv")
-    df.to_csv(output_path, index=False, encoding="utf-8-sig")
-    print(f"\n★ {category_name} 완료: {len(df)}개 고유 데이터 확보")
 
     if category_name in ["Mainboard", "Power", "Case"]:
-        get_db_connection(category_name, df)
+        output_dir = os.path.join(base_dir, "result")
+        os.makedirs(output_dir, exist_ok=True)
+    else:
+        output_dir = base_dir
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_path = os.path.join(output_dir, f"data_{category_name}.csv")
+    df.to_csv(output_path, index=False, encoding="utf-8-sig")
+    print(f"\n★ {category_name} 완료: {len(df)}개 고유 데이터 확보")
 
 
 if __name__ == "__main__":
