@@ -11,7 +11,7 @@ sys.path.append(current_dir)
 from crawler.benchmark_crawler import dump_all_benchmarks
 from crawler.danawa_crawler import crawl_danawa
 from logic.data_processor import match_data
-from logic.create_DB import init_db
+from logic.create_DB import init_db 
 from logic.csv_to_db import load_csv_to_db
 
 
@@ -70,6 +70,7 @@ def run_csvToDB():
 
 
 if __name__ == "__main__":
+
     print("전체 파이프라인 시작")
     init_db()
     run_benchmark()
