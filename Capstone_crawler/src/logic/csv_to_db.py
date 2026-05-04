@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from sqlalchemy import text
 from logic.connection import get_engine
 
 
@@ -11,6 +12,12 @@ def get_table_name(file_name):
         .replace(".csv", "")
         .lower()
     )
+
+
+def clear_table(engine, table_name):
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE TABLE `{table_name}`"))
+    print(f"{table_name} 기존 데이터 삭제 완료")
 
 
 def load_csv_to_db(file_path):
@@ -31,7 +38,12 @@ def load_csv_to_db(file_path):
             return
 
         # 3. 전처리
+        # 의도적으로 NULL이 있는 행은 제거
         df = df.dropna()
+
+        if df.empty:
+            print(f"{file_name} 유효 데이터 없음, 스킵")
+            return
 
         if "name" in df.columns:
             df = df.drop_duplicates(subset=["name", "price"])
@@ -40,11 +52,14 @@ def load_csv_to_db(file_path):
         drop_cols = ["id", "created_at"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
 
-        # 5. DB 저장
+        # 5. 기존 테이블 데이터 삭제
+        clear_table(engine, table_name)
+
+        # 6. DB 저장
         df.to_sql(
             name=table_name,
             con=engine,
-            if_exists='append',  # 필요하면 replace로 변경
+            if_exists="append",
             index=False
         )
 
@@ -60,7 +75,6 @@ if __name__ == "__main__":
         os.path.join(os.path.dirname(__file__), "..", "..", "data", "result")
     )
 
-    # 폴더 내 모든 CSV 처리
     for file in os.listdir(data_dir):
         if file.endswith(".csv"):
             file_path = os.path.join(data_dir, file)

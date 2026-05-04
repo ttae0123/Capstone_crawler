@@ -55,7 +55,6 @@ def extract_refined_spec(spec_list, category):
         res['memory_type'] = m[0].upper() if m else None
         m = search(r'([0-9]+)MHz')
         res['memory_clock'] = int(m.group(1)) if m else None
-        m = search(r'램개수:\s*([0-9]+)개')
     elif category == "Case":
         sizes = findall(r'(ATX|M-ATX|E-ATX|Mini-ITX|Micro-ATX)', re.I)
         res['size'] = pick_largest_size(sizes)

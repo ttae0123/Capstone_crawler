@@ -3,11 +3,41 @@ import os
 import re
 
 
+def extract_brand_family(text):
+    text = str(text).lower()
+
+    families = set()
+
+    mapping = {
+        "intel": ["intel", "인텔"],
+        "amd": ["amd", "라이젠", "애슬론", "스레드리퍼"],
+        "xeon": ["xeon", "제온"],
+        "ryzen": ["ryzen", "라이젠"],
+        "core": ["core", "코어"],
+        "pentium": ["pentium", "펜티엄"],
+        "celeron": ["celeron", "셀러론"],
+        "opteron": ["opteron"],
+        "athlon": ["athlon", "애슬론"],
+    }
+
+    for key, words in mapping.items():
+        if any(w in text for w in words):
+            families.add(key)
+
+    return families
+
+
 def extract_model_info(text):
     if pd.isna(text):
-        return {"tokens": set(), "numbers": set(), "suffix": set()}
+        return {
+            "tokens": set(),
+            "numbers": set(),
+            "suffix": set(),
+            "families": set()
+        }
 
-    text = str(text).lower()
+    original_text = str(text).lower()
+    text = original_text
 
     noise_words = [
         '삼성전자', '마이크로닉스', '이엠텍', 'asus', 'msi', 'gigabyte', 'asrock', 'zotac',
@@ -17,8 +47,14 @@ def extract_model_info(text):
         '게이밍', '벤투스', '뱅가드'
     ]
 
-    suffix_list = ['k', 'kf', 'f', 'x', 'xt', 'ti', 'super']
+    # 긴 접미사를 먼저 검사해야 함
+    # 예: 14900KF가 f로 먼저 잡히는 문제 방지
+    suffix_list = ['super', 'kf', 'xt', 'ti', 'k', 'f', 'x']
 
+    # 브랜드/제품군은 한글이 필요하므로 original_text에서 먼저 추출
+    families = extract_brand_family(original_text)
+
+    # 모델명 토큰 비교용 텍스트는 기존처럼 영문/숫자 중심으로 정제
     text = re.sub(r'\(.*?\)', ' ', text)
     text = re.sub(r'[^a-z0-9\s]', ' ', text)
 
@@ -40,20 +76,27 @@ def extract_model_info(text):
         for s in suffix_list:
             if w.endswith(s):
                 suffix.add(s)
+                break
 
     return {
         "tokens": tokens,
         "numbers": numbers,
-        "suffix": suffix
+        "suffix": suffix,
+        "families": families
     }
 
 
 def calc_match_score(d, b):
-
     num_inter = d["numbers"] & b["numbers"]
 
     if not num_inter:
         return -1
+
+    # 브랜드/제품군이 둘 다 존재하는데 겹치는 것이 없으면 오매칭으로 판단
+    # 예: Intel Xeon 6330H ↔ AMD FX-6330 방지
+    if d["families"] and b["families"]:
+        if d["families"].isdisjoint(b["families"]):
+            return -1
 
     inter = d["tokens"] & b["tokens"]
     union = d["tokens"] | b["tokens"]
@@ -84,7 +127,10 @@ def match_data(part_type):
     df_danawa = pd.read_csv(os.path.join(data_dir, f"data_{part_type}.csv"))
     df_bench = pd.read_csv(os.path.join(data_dir, f"total_bench_{part_type}.csv"))
 
-    name_col = next((c for c in ['name', 'product_name', 'title', '제품명'] if c in df_danawa.columns), None)
+    name_col = next(
+        (c for c in ['name', 'product_name', 'title', '제품명'] if c in df_danawa.columns),
+        None
+    )
 
     if name_col is None:
         print("제품명 컬럼 없음")
@@ -124,10 +170,12 @@ def match_data(part_type):
 
     output_dir = os.path.join(data_dir, "result")
     os.makedirs(output_dir, exist_ok=True)
+
     save_path = os.path.join(output_dir, f"integrated_{part_type}.csv")
     df_result.to_csv(save_path, index=False, encoding="utf-8-sig")
 
     print(f"\n {part_type} 통합 완료: 최종 매칭률 {match_rate:.1f}%")
+
 
 if __name__ == "__main__":
     for part in ["CPU", "GPU", "SSD", "RAM"]:
