@@ -23,7 +23,8 @@ parts_list = [
         {"name": "Power", "code": "112777", "page": 20},
         {"name": "RAM", "code": "112752", "page": 20},
         {"name": "SSD", "code": "112760", "page": 20},
-        {"name": "Case", "code": "112775", "page": 20}
+        {"name": "Case", "code": "112775", "page": 20},
+        {"name": "Cooler", "code": "11336857", "page": 20}
     ]
 
 

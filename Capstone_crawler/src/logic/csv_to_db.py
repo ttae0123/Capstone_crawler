@@ -5,13 +5,18 @@ from logic.connection import get_engine
 
 
 def get_table_name(file_name):
-    return (
+    table_name = (
         file_name
         .replace("data_", "")
         .replace("integrated_", "")
         .replace(".csv", "")
         .lower()
     )
+
+    if table_name == "case":
+        return "pc_case"
+
+    return table_name
 
 
 def clear_table(engine, table_name):

@@ -53,7 +53,7 @@ class Ram(Base):
 
 
 class Case(Base):
-    __tablename__ = "case"
+    __tablename__ = "pc_case"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False)
@@ -80,6 +80,15 @@ class Power(Base):
     price = Column(BigInteger, nullable=False)
     size = Column(Text)
     wattage = Column(BigInteger)
+
+class Cooler(Base):
+    __tablename__ = "cooler"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(Text, nullable=False)
+    price = Column(BigInteger, nullable=False)
+    socket_type = Column(Text)
+    cooler_length = Column(BigInteger)
 
 
 def init_db():
