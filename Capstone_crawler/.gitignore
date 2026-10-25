@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.idea/
+.git/
+*/temp_html/
+*/ratio_debug/
+*.partial.csv
+*.tmp
+match_debug_*.csv
+compuzone_failed.csv
+compuzone_ratio_summary.csv
+recommendation_budget_ratio_report.csv

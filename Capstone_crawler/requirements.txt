@@ -1,0 +1,9 @@
+pandas
+numpy
+sqlalchemy
+mariadb
+selenium
+beautifulsoup4
+playwright
+requests
+lxml
