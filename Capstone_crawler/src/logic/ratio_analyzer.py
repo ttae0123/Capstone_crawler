@@ -12,7 +12,7 @@ INPUT_FILE = DATA_DIR / "compuzone_estimates.csv"
 OUTPUT_FILE = DATA_DIR / "recommendation_budget_ratios.csv"
 
 CATEGORIES = ["CPU", "GPU", "MAINBOARD", "RAM", "SSD", "POWER", "CASE", "COOLER"]
-USAGES = ["OFFICE", "GAMING", "VIDEO_EDITING"]
+USAGES = ["OFFICE", "GAMING", "HIGH_END"]
 BUDGET_STEP = 500_000
 LOCAL_RADIUS = 250_000
 MIN_LOCAL_SAMPLES = 8
@@ -22,12 +22,6 @@ REMOVE_DUPLICATE_CONFIGS = True
 MEAN_WEIGHT = Decimal("0.60")
 MEDIAN_WEIGHT = Decimal("0.40")
 
-GPU_REDUCTION_RATE = Decimal("0.05")
-EDITING_DISTRIBUTION = {
-    "CPU": Decimal("0.45"),
-    "RAM": Decimal("0.35"),
-    "SSD": Decimal("0.20"),
-}
 PRECISION = Decimal("0.000001")
 PRICE_TOLERANCE = 1
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -200,18 +194,9 @@ def calculate_ratios(samples, budget, usage):
     return normalize_ratios(result)
 
 
-def derive_video_editing(gaming_ratios):
-    """GPU 예산의 5%만 줄이고 CPU 45%, RAM 35%, SSD 20%로 재분배."""
-    editing = dict(gaming_ratios)
-    moved = editing["GPU"] * GPU_REDUCTION_RATE
-    editing["GPU"] -= moved
-    for category, weight in EDITING_DISTRIBUTION.items():
-        editing[category] += moved * weight
-    return normalize_ratios(editing)
-
-
-def build_ratio_records(estimates):
-    records, gaming_points = [], []
+def build_ratio_records(estimates, high_end_build):
+    """사무/게이밍은 실측 비율, 하이엔드는 실제 호환 최소 구성의 부품 가격 비율을 사용한다."""
+    records = []
     for usage in ("OFFICE", "GAMING"):
         budgets = make_budget_points(estimates, usage)
         log.info("[%s] 기준 예산: %s", usage, budgets)
@@ -219,17 +204,16 @@ def build_ratio_records(estimates):
             samples, method, local_count = select_samples(estimates, usage, budget)
             if not samples:
                 continue
-            raw_ratios = calculate_ratios(samples, budget, usage)
+            raw = calculate_ratios(samples, budget, usage)
             records.append({"usage": usage, "budget": budget,
-                            "ratios": round_ratios(raw_ratios)})
-            if usage == "GAMING":
-                gaming_points.append((budget, raw_ratios, len(samples)))
+                            "ratios": round_ratios(raw)})
             log.info("[%s] %s원 | 표본 %d개 | 근접표본 %d개 | %s",
                      usage, f"{budget:,}", len(samples), local_count, method)
-    for budget, gaming_ratios, count in gaming_points:
-        editing = derive_video_editing(gaming_ratios)
-        records.append({"usage": "VIDEO_EDITING", "budget": budget,
-                        "ratios": round_ratios(editing)})
+
+    # 하이엔드는 최소 금액 1개만 저장하며 고예산 요청에는 이 비율을 기준값으로 재사용한다.
+    # 실제 부품 조합에서 유래한 값이고, 기존 영상편집 GPU -5% 파생 공식은 쓰지 않는다.
+    records.append({"usage": "HIGH_END", "budget": high_end_build.total_price,
+                    "ratios": round_ratios(high_end_build.ratios)})
     order = {usage: index for index, usage in enumerate(USAGES)}
     records.sort(key=lambda item: (order[item["usage"]], item["budget"]))
     return records
@@ -264,21 +248,9 @@ def validate_records(records):
             raise ValueError(f"비율 합계 오류: {key}")
         if any(ratio < 0 or ratio > 1 for ratio in ratios.values()):
             raise ValueError(f"비율 범위 오류: {key}")
-    gaming_budgets = {r["budget"] for r in records if r["usage"] == "GAMING"}
-    editing_budgets = {r["budget"] for r in records if r["usage"] == "VIDEO_EDITING"}
-    if gaming_budgets != editing_budgets:
-        raise ValueError("게이밍과 영상편집 기준 예산 불일치")
-    by_key = {(r["usage"], r["budget"]): r["ratios"] for r in records}
-    for budget in gaming_budgets:
-        gaming = by_key[("GAMING", budget)]
-        editing = by_key[("VIDEO_EDITING", budget)]
-        if abs(editing["GPU"] - gaming["GPU"] * Decimal("0.95")) > Decimal("0.000002"):
-            raise ValueError(f"영상편집 GPU 5% 감소 규칙 불일치: {budget}")
-        for category in ("MAINBOARD", "POWER", "CASE", "COOLER"):
-            if editing[category] != gaming[category]:
-                raise ValueError(f"영상편집 기타 부품 배분 변경: {budget}/{category}")
-        if any(editing[c] < gaming[c] for c in ("CPU", "RAM", "SSD")):
-            raise ValueError(f"영상편집 핵심 부품 예산 감소: {budget}")
+    high_end_rows = [r for r in records if r["usage"] == "HIGH_END"]
+    if len(high_end_rows) != 1 or high_end_rows[0]["ratios"]["GPU"] <= 0:
+        raise ValueError("하이엔드 비율은 GPU가 포함된 최소 견적 1개여야 합니다")
     log.info("최종 비율 검증 완료: %d개", len(records))
 
 
@@ -298,7 +270,7 @@ def print_summary(records):
 
 def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    log.info("컴퓨존 견적 분석 시작 (영상편집 GPU 배정분 5%% 재분배)")
+    log.info("컴퓨존 견적 분석 시작 (하이엔드 실제 호환 견적 기반)")
     rows = read_source()
     estimates = clean_estimates(rows)
     if not estimates:
@@ -307,7 +279,16 @@ def main():
     log.info("유효 표본: OFFICE=%d, GAMING=%d", counts["OFFICE"], counts["GAMING"])
     if not counts["OFFICE"] or not counts["GAMING"]:
         raise RuntimeError("사무용 또는 게이밍 표본이 없습니다")
-    records = build_ratio_records(estimates)
+    # PyCharm에서 직접 실행해도 모듈을 찾을 수 있도록 src 폴더를 import 경로에 추가
+    import sys
+    sys.path.insert(0, str(ROOT_DIR / "src"))
+    from logic.high_end_budget import calculate_minimum_build, write_preview
+    high_end_build = calculate_minimum_build()
+    write_preview(high_end_build)
+    log.info("[HIGH_END] CSV 기준 최소 견적: %s원 (CPU 점수 >= %s, GPU 점수 >= %s)",
+             f"{high_end_build.total_price:,}",
+             high_end_build.cpu_benchmark_threshold, high_end_build.gpu_benchmark_threshold)
+    records = build_ratio_records(estimates, high_end_build)
     validate_records(records)
     save_ratio_csv(records)
     print_summary(records)

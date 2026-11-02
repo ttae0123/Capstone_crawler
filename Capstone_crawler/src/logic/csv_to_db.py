@@ -774,7 +774,7 @@ RATIO_CATEGORIES = [
 RATIO_FIELDS = ["usage", "budget"] + [
     f"{category}_ratio" for category in RATIO_CATEGORIES
 ]
-RATIO_USAGES = {"OFFICE", "GAMING", "VIDEO_EDITING"}
+RATIO_USAGES = {"OFFICE", "GAMING", "HIGH_END"}
 RATIO_QUANTUM = Decimal("0.000001")
 
 
@@ -836,16 +836,13 @@ def load_budget_ratio_csv(file_path):
         if not records:
             raise ValueError("비율 CSV에 유효한 행이 없습니다")
 
-        keyed = {(row["usage"], row["budget"]): row for row in records}
-        gaming_budgets = {budget for usage, budget in keyed if usage == "GAMING"}
-        editing_budgets = {budget for usage, budget in keyed if usage == "VIDEO_EDITING"}
-        if gaming_budgets != editing_budgets:
-            raise ValueError("게이밍/영상편집 기준 예산이 일치하지 않습니다")
-        for budget in gaming_budgets:
-            gaming_gpu = keyed[("GAMING", budget)]["gpu_ratio"]
-            editing_gpu = keyed[("VIDEO_EDITING", budget)]["gpu_ratio"]
-            if abs(editing_gpu - gaming_gpu * Decimal("0.95")) > Decimal("0.000002"):
-                raise ValueError(f"{budget}원: 영상편집 GPU 5% 재배분 규칙 불일치")
+        high_end_rows = [row for row in records if row["usage"] == "HIGH_END"]
+        if len(high_end_rows) != 1 or high_end_rows[0]["gpu_ratio"] <= 0:
+            raise ValueError("HIGH_END 최소 견적 비율은 정확히 1행이어야 합니다")
+        if not any(row["usage"] == "OFFICE" for row in records):
+            raise ValueError("OFFICE 비율이 없습니다")
+        if not any(row["usage"] == "GAMING" for row in records):
+            raise ValueError("GAMING 비율이 없습니다")
 
         ratio_columns = [f"{c}_ratio" for c in RATIO_CATEGORIES]
         insert_columns = ["usage", "budget", *ratio_columns]
@@ -863,9 +860,15 @@ def load_budget_ratio_csv(file_path):
 
         engine = get_engine()
         with engine.begin() as connection:
+            # 이전 VIDEO_EDITING 및 이전 HIGH_END 기준 예산을 원자적으로 교체한다.
+            # OFFICE/GAMING의 기존 UPSERT 동작은 유지한다.
+            connection.execute(text(
+                "DELETE FROM `recommendation_budget_ratios` "
+                "WHERE `usage` IN ('VIDEO_EDITING', 'HIGH_END')"
+            ))
             connection.execute(sql, records)
 
-        print(f"[비율 DB] UPSERT 완료: {len(records)}행 (기존 자료 유지)")
+        print(f"[비율 DB] UPSERT 완료: {len(records)}행 (구 VIDEO_EDITING 제거)")
         return True
 
     except Exception as exc:
